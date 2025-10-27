@@ -102,6 +102,7 @@ fabric.properties
 
 # Project
 tmp/
+logs/
 
 # Environment variables
 .env
