@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/devgugga/avetis-drive/internal/infrastructure/config"
+	"github.com/devgugga/avetis-drive/internal/infrastructure/database"
 	apphttp "github.com/devgugga/avetis-drive/internal/infrastructure/http"
 	"github.com/devgugga/avetis-drive/internal/infrastructure/logging"
 )
@@ -34,8 +35,23 @@ func main() {
 		Str("port", cfg.Server.Port).
 		Msg("Application starting")
 
+	// Initialize database client
+	dbClient, err := database.NewClient(cfg, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to initialize database client")
+	}
+	defer func(dbClient *database.Client) {
+		_ = dbClient.Close()
+	}(dbClient)
+
+	// Run database migrations
+	ctx := context.Background()
+	if err := dbClient.AutoMigrate(ctx); err != nil {
+		logger.Fatal().Err(err).Msg("Failed to run database migrations")
+	}
+
 	// Initialize HTTP server
-	server := apphttp.NewServer(cfg, logger)
+	server := apphttp.NewServer(cfg, logger, dbClient)
 
 	// Start server in a goroutine
 	go func() {

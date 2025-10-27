@@ -30,6 +30,13 @@ This is a Go-based application called "avetis-drive" following Clean Architectur
 - Vendor dependencies: `go mod vendor`
 - View dependencies: `go list -m all`
 
+### Database (Ent + PostgreSQL)
+
+- Generate Ent code after schema changes: `go generate ./internal/infrastructure/database/ent`
+- Create new Ent schema: `go run entgo.io/ent/cmd/ent init --target internal/infrastructure/database/ent/schema <EntityName>`
+- Database migrations are run automatically on application startup via `AutoMigrate()`
+- **Database auto-creation**: The application automatically creates the PostgreSQL database if it doesn't exist (requires PostgreSQL server to be running)
+
 ## Architecture
 
 The codebase follows **Clean Architecture** with clear boundaries between layers:
@@ -45,9 +52,12 @@ internal/
     requests/     - API request DTOs
     responses/    - API response DTOs
   infrastructure/ - External concerns (outermost layer)
-    config/       - Configuration management
-    database/     - Database connections and repositories
-    http/         - HTTP layer
+    config/       - Configuration management (.env support via godotenv)
+    logging/      - Structured logging (zerolog)
+    database/     - Database layer (Ent ORM + PostgreSQL)
+      ent/        - Generated Ent code
+        schema/   - Ent schema definitions
+    http/         - HTTP layer (Echo framework)
       handlers/   - HTTP request handlers
       middlewares/- HTTP middlewares
 ```

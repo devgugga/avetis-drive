@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/devgugga/avetis-drive/internal/infrastructure/config"
+	"github.com/devgugga/avetis-drive/internal/infrastructure/database"
 	"github.com/devgugga/avetis-drive/internal/infrastructure/http/middlewares"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -15,13 +16,14 @@ import (
 
 // Server wraps the Echo instance and provides server lifecycle management
 type Server struct {
-	echo   *echo.Echo
-	config *config.Config
-	logger zerolog.Logger
+	echo     *echo.Echo
+	config   *config.Config
+	logger   zerolog.Logger
+	dbClient *database.Client
 }
 
 // NewServer creates and configures a new Echo server instance
-func NewServer(cfg *config.Config, logger zerolog.Logger) *Server {
+func NewServer(cfg *config.Config, logger zerolog.Logger, dbClient *database.Client) *Server {
 	e := echo.New()
 
 	// Hide Echo banner
@@ -33,9 +35,10 @@ func NewServer(cfg *config.Config, logger zerolog.Logger) *Server {
 	e.Server.WriteTimeout = 30 * time.Second
 
 	server := &Server{
-		echo:   e,
-		config: cfg,
-		logger: logger,
+		echo:     e,
+		config:   cfg,
+		logger:   logger,
+		dbClient: dbClient,
 	}
 
 	// Setup middlewares
@@ -74,7 +77,6 @@ func (s *Server) setupRoutes() {
 	// Health check routes (outside versioned API)
 	s.setupHealthRoutes()
 
-	// TODO: Add more route groups here
 	_ = v1 // Avoid unused variable warning for now
 }
 
@@ -94,10 +96,24 @@ func (s *Server) healthCheck(c echo.Context) error {
 
 // readinessCheck handles readiness probe
 func (s *Server) readinessCheck(c echo.Context) error {
-	// TODO: Add database connectivity check here
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
+	defer cancel()
+
+	// Check database connectivity
+	if err := s.dbClient.Ping(ctx); err != nil {
+		s.logger.Error().Err(err).Msg("Database health check failed")
+		return c.JSON(http.StatusServiceUnavailable, map[string]interface{}{
+			"status":   "not ready",
+			"database": "unavailable",
+			"error":    err.Error(),
+			"time":     time.Now().UTC(),
+		})
+	}
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"status": "ready",
-		"time":   time.Now().UTC(),
+		"status":   "ready",
+		"database": "connected",
+		"time":     time.Now().UTC(),
 	})
 }
 
